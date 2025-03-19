@@ -1469,6 +1469,19 @@ Module.onRuntimeInitialized = () => {
     const HEAP2F64 = new Float64Array(Module.HEAPU8.buffer);
     const HEAPFF64 = new Float64Array(Module.HEAPU8.buffer);
 
+    function calculate_averageJS(input){
+      const sz = input.length;
+
+      if(sz <= 0) return 0;
+
+      let sum = 0.0;
+
+      for(let i = 0; i < sz;i++){
+        sum = sum + input[i]
+      }
+      
+      return sum/sz;
+    }
 
     function fftJS(input) {
       const n = input.length;
@@ -1485,8 +1498,28 @@ Module.onRuntimeInitialized = () => {
       }
       return result;
     }
+    
+    function led_controlJS(lumi){
+      const avg = calculate_averageJS(lumi);
 
-    const inputSignal = new Float64Array(2048).fill(0).map((_, i) => Math.sin(2 * Math.PI * 440* i / 2048));
+      // LED ajustado para respectiva faixa de luminosidade média do ambiente em lux
+      if(avg >= 0 && avg <= 50) return 0.9;
+      else if (avg > 10 && avg <= 50) return 0.7;
+      else if (avg > 50 && avg <= 200) return 0.5;
+      else if (avg > 200 && avg <= 300) return 0.3;
+      else if (avg > 300 && avg <= 500) return 0.1;
+      else return 0;
+    }
+
+    function heat_indexJS(temp,humid){
+      const avgTemp = calculate_averageJS(temp);
+      const avgHumid = calculate_averageJS(humid);
+
+      const tempF = avgTemp * 1.8 + 32; // Converte de °C para °F
+      const hi = 0.5 * (tempF + 61 + ((tempF - 68) * 1.2) + (avgHumid * 0.094)); // Fórmula do índice de calor
+
+      return (hi - 32) / 1.8;
+    }
 
     client.on('connect', () => {
         console.log('Conectado ao broker MQTT.');
@@ -1521,9 +1554,17 @@ Module.onRuntimeInitialized = () => {
           const adsize = audio.length;
           const ptrf = malloc(adsize * 8);
           HEAPFF64.set(audio, ptrf / 8);
-          console.time('FFT JS');
-          fftJS(inputSignal);
-          console.timeEnd('FFT JS');
+
+          const strtMemJS = process.memoryUsage().heapUsed;
+          const strtCpuJS = process.cpuUsage();
+          console.time('--FFT JS--');
+          fftJS(audio);
+          console.timeEnd('--FFT JS--');
+          const endCpuJS = process.cpuUsage(strtCpuJS);
+          const endMemJS = process.memoryUsage().heapUsed;
+
+          console.log(`--Consumo de CPU -JS: ${endCpuJS.user} µs--`)
+          console.log(`--Consumo de memória -JS: ${((endMemJS - strtMemJS) / 1024/1024).toFixed(3)} MB--`)
 
           const strtMem = process.memoryUsage().heapUsed;
           const strtCpu = process.cpuUsage();
@@ -1533,7 +1574,7 @@ Module.onRuntimeInitialized = () => {
           const endCpu = process.cpuUsage(strtCpu);
           const endMem = process.memoryUsage().heapUsed;
 
-          console.log(`**Consumo de CPU - wasm:${endCpu.user} ms**`)
+          console.log(`**Consumo de CPU - wasm:${endCpu.user} µs**`)
           console.log(`**Consumo de memória - wasm:${((endMem - strtMem) / 1024/1024).toFixed(3)} MB**`)
 
           free(ptrf);
@@ -1548,12 +1589,23 @@ Module.onRuntimeInitialized = () => {
       if (lumData.length > 0) {
           const lum = new Float64Array(lumData);
 
-          
+      
           const ptr = malloc(lum.length * 8); 
           HEAP1F64.set(lum, ptr / 8); 
 
           const avgl = calculate_average(ptr, lum.length);
           console.log(`Média luminosidade: ${avgl.toFixed(2)}`);
+
+          const strtMemJS = process.memoryUsage().heapUsed;
+          const strtCpuJS = process.cpuUsage();
+          console.time('--LED Control JS--');
+          led_controlJS(lum);
+          console.timeEnd('--LED Control JS--');
+          const endCpuJS = process.cpuUsage(strtCpuJS);
+          const endMemJS = process.memoryUsage().heapUsed;
+
+          console.log(`--Consumo de CPU -JS: ${endCpuJS.user} µs--`)
+          console.log(`--Consumo de memória -JS: ${((endMemJS - strtMemJS) / 1024/1024).toFixed(3)} MB--`)
 
           const strtMem = process.memoryUsage().heapUsed;
           const strtCpu = process.cpuUsage();
@@ -1563,7 +1615,7 @@ Module.onRuntimeInitialized = () => {
           const endCpu = process.cpuUsage(strtCpu);
           const endMem = process.memoryUsage().heapUsed;
 
-          console.log(`**Consumo de CPU - wasm:${endCpu.user} ms**`)
+          console.log(`**Consumo de CPU - wasm:${endCpu.user} µs**`)
           console.log(`**Consumo de memória - wasm:${((endMem - strtMem) / 1024/1024).toFixed(3)} MB**`)
 
           console.log(`-------------------------------------`);
@@ -1589,6 +1641,17 @@ Module.onRuntimeInitialized = () => {
         HEAP1F64.set(temp, ptr1 / 8); 
         HEAP2F64.set(humid, ptr2 / 8); 
         
+        const strtMemJS = process.memoryUsage().heapUsed;
+        const strtCpuJS = process.cpuUsage();
+        console.time('--Heat Index JS--');
+        heat_indexJS(temp,humid);
+        console.timeEnd('--Heat Index JS--');
+        const endCpuJS = process.cpuUsage(strtCpuJS);
+        const endMemJS = process.memoryUsage().heapUsed;
+
+        console.log(`--Consumo de CPU -JS: ${endCpuJS.user} µs--`)
+        console.log(`--Consumo de memória -JS: ${((endMemJS - strtMemJS) / 1024/1024).toFixed(3)} MB--`)
+
         const strtMem = process.memoryUsage().heapUsed;
         const strtCpu = process.cpuUsage();
         console.time('**Heat Index - wasm**');
@@ -1597,7 +1660,7 @@ Module.onRuntimeInitialized = () => {
         const endCpu = process.cpuUsage(strtCpu);
         const endMem = process.memoryUsage().heapUsed;
 
-        console.log(`**Consumo de CPU - wasm:${endCpu.user} ms**`)
+        console.log(`**Consumo de CPU - wasm:${endCpu.user} µs**`)
         console.log(`**Consumo de memória - wasm:${((endMem - strtMem) / 1024/1024).toFixed(3)} MB**`)
 
 
