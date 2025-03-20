@@ -1,19 +1,4 @@
-# Project Title
+# Iot-Wasm
 
-A brief description of what this project does and who it's for.
+Projeto sobre uma simulação de um sistema publish/subscribe de sensores com broker mqtt. Os módulos de processamento dos dados foram realizados em Wasm para efeito de comparação com as mesmas funções em JavaScript puro.
 
-## Installation
-
-Instructions on how to install and set up the project.
-
-## Usage
-
-Examples of how to use the project.
-
-## Contributing
-
-Guidelines for contributing to the project.
-
-## License
-
-Information about the project's license.
